@@ -215,37 +215,52 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	grid_t *new_grid = NULL;
 
 	/* FIXME: create 2D cartesian communicator */
-
+	MPI_Cart_create(MPI_COMM_WORD,2,ctx->dims,ctx->isperiodic,ctx->reorder,ctx->comm2d);
+	MPI_Cart_shift(ctx->comm2d,1,1,&ctx->north_peer,&ctx->south_peer);
+	MPI_Cart_shift(ctx->comm2d,0,1,&ctx->west_peer,&ctx->east_peer);
+	MPI_Cart_coords(ctx->comm2d,ctx->rank,2,ctx->coords);
+	
 	/*
 	 * FIXME: le processus rank=0 charge l'image du disque
 	 * et transfert chaque section aux autres processus
 	 */
+	 if(ctx->rank == 0){
+		 /* load input image */
+		image_t *image = load_png(opts->input);
+		if (image == NULL)
+			goto err;
+	 
+		/* select the red channel as the heat source */
+		ctx->global_grid = grid_from_image(image, CHAN_RED);
+	 
+		/* grid is normalized to one, multiply by MAX_TEMP */
+		grid_multiply(ctx->global_grid, MAX_TEMP);
+	 
+		/* 2D decomposition */
+		ctx->cart = make_cart2d(ctx->global_grid->width,
+		ctx->global_grid->height, opts->dimx, opts->dimy);
+		cart2d_grid_split(ctx->cart, ctx->global_grid);
+	 }
 
-	/* load input image */
-	image_t *image = load_png(opts->input);
-	if (image == NULL)
-		goto err;
+	
 
-	/* select the red channel as the heat source */
-	ctx->global_grid = grid_from_image(image, CHAN_RED);
+	
 
-	/* grid is normalized to one, multiply by MAX_TEMP */
-	grid_multiply(ctx->global_grid, MAX_TEMP);
+	
 
-	/* 2D decomposition */
-	ctx->cart = make_cart2d(ctx->global_grid->width,
-			ctx->global_grid->height, opts->dimx, opts->dimy);
-	cart2d_grid_split(ctx->cart, ctx->global_grid);
+	
 
 	/*
 	 * FIXME: send grid dimensions and data
 	 * Comment traiter le cas de rank=0 ?
 	 */
+	 MPI_Send()
 
 	/*
 	 * FIXME: receive dimensions of the grid
 	 * store into new_grid
 	 */
+	 MPI_Recv();
 
 	/* Utilisation temporaire de global_grid */
 	new_grid = ctx->global_grid;
@@ -259,6 +274,8 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	//free_grid(new_grid);
 
 	/* FIXME: create type vector to exchange columns */
+	MPI_Type_vector(ctx->curr_grid->height,1,ctx->curr_grid->pw,MPI_DOUBLE,&ctx->vector);
+	MPI_Type_commit(&ctx->vector);
 
 	return 0;
 	err: return -1;
