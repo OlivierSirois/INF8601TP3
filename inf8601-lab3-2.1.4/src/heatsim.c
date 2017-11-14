@@ -196,7 +196,7 @@ void free_ctx(ctx_t *ctx) {
 }
 
 int init_ctx(ctx_t *ctx, opts_t *opts) {
-	TODO("lab3");
+	//TODO("lab3");
 	MPI_Comm_size(MPI_COMM_WORLD, &ctx->numprocs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &ctx->rank);
 
@@ -215,7 +215,7 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	grid_t *new_grid = NULL;
 
 	/* FIXME: create 2D cartesian communicator */
-	MPI_Cart_create(MPI_COMM_WORD,2,ctx->dims,ctx->isperiodic,ctx->reorder,ctx->comm2d);
+	MPI_Cart_create(MPI_COMM_WORLD,2,ctx->dims,ctx->isperiodic,ctx->reorder,ctx->comm2d);
 	MPI_Cart_shift(ctx->comm2d,1,1,&ctx->north_peer,&ctx->south_peer);
 	MPI_Cart_shift(ctx->comm2d,0,1,&ctx->west_peer,&ctx->east_peer);
 	MPI_Cart_coords(ctx->comm2d,ctx->rank,2,ctx->coords);
@@ -224,7 +224,10 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	 * FIXME: le processus rank=0 charge l'image du disque
 	 * et transfert chaque section aux autres processus
 	 */
-	 if(ctx->rank == 0){
+	MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
+	MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
+
+	if(ctx->rank == 0){
 		 /* load input image */
 		image_t *image = load_png(opts->input);
 		if (image == NULL)
@@ -238,29 +241,47 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	 
 		/* 2D decomposition */
 		ctx->cart = make_cart2d(ctx->global_grid->width,
-		ctx->global_grid->height, opts->dimx, opts->dimy);
+					ctx->global_grid->height, opts->dimx, opts->dimy);
 		cart2d_grid_split(ctx->cart, ctx->global_grid);
-	 }
 
-	
 
-	
+		/*
+		 * FIXME: send grid dimensions and data
+		 * Comment traiter le cas de rank=0 ?
+		 */		
+		int coords[DIM_2D];
+		for(int i = 1; i < ctx->numprocs;i++)
+		{
+			int coords[DIM_2D];
+			MPI_Cart_coords(ctx->comm2d, i, DIM_2D, coords);	
+			grid_t *grid = cart2d_get_grid(ctx->cart, coords[0], coords[1]);	
 
-	
+			MPI_Send(&grid->width, 1, MPI_INTEGER, i, i * 4 +0, ctx->comm2d);//, &req[(i-1)*4+0]);
+			MPI_Send(&grid->height, 1, MPI_INTEGER, i, i * 4  + 1, ctx->comm2d);//, &req[(i-1)*4+1]);
+			MPI_Send(&grid->padding, 1 , MPI_INTEGER, i, i * 4  + 2, ctx->comm2d);//, &req[(i-1)*4+2]);
+			MPI_Send(grid->dbl, grid->pw*grid->ph, MPI_DOUBLE, i, i * 4  + 3, ctx->comm2d);//, &req[(i-1)*4+3]);
 
-	
+		}
 
-	/*
-	 * FIXME: send grid dimensions and data
-	 * Comment traiter le cas de rank=0 ?
-	 */
-	 MPI_Send()
+		MPI_Cart_coords(ctx->comm2d, ctx->rank, DIM_2D, coords);
+		new_grid = cart2d_get_grid(ctx->cart, coords[0], coords[1]);
+	}
+	else
+	{
+	 	/*
+		* FIXME: receive dimensions of the grid
+		* store into new_grid
+		*/
+	 	int width, height, padding;
+		MPI_Recv(&width, 1, MPI_INTEGER, 0, ctx->rank*4+0, ctx->comm2d, &status[0]);
+		MPI_Recv(&height, 1, MPI_INTEGER, 0, ctx->rank*4+1, ctx->comm2d, &status[1]);
+		MPI_Recv(&padding, 1, MPI_INTEGER, 0, ctx->rank*4+2, ctx->comm2d, &status[2]);
 
-	/*
-	 * FIXME: receive dimensions of the grid
-	 * store into new_grid
-	 */
-	 MPI_Recv();
+		new_grid = make_grid(width, height, padding);
+		MPI_Recv(new_grid->dbl, new_grid->pw*new_grid->ph, MPI_DOUBLE, 0, ctx->rank * 4 +3, ctx->comm2d, &status[3]);
+	}
+
+
 
 	/* Utilisation temporaire de global_grid */
 	new_grid = ctx->global_grid;
