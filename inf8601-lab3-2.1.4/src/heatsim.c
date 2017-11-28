@@ -49,15 +49,11 @@ typedef struct ctx {
 	int isperiodic[DIM_2D];
 	int coords[DIM_2D];
 	int grid_coords[DIM_2D];
-	int Xsize;
-	int Ysize;
 	int reorder;
 	int north_peer;
 	int south_peer;
 	int east_peer;
 	int west_peer;
-	int grid_width;
-	int grid_height;
 	MPI_Datatype vector;
 } ctx_t;
 
@@ -236,8 +232,6 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	 */
 	//MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
 	MPI_Status *status = calloc(16*ctx->numprocs, sizeof(MPI_Status));
-	ctx->Xsize = opts->dimx;
-	ctx->Ysize = opts->dimy;
 	
 
 	//printf("we are here\n");
@@ -253,8 +247,7 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		/* grid is normalized to one, multiply by MAX_TEMP */
 		grid_multiply(ctx->global_grid, MAX_TEMP);
 		/* 2D decomposition */
-		ctx->Xsize = ctx->global_grid->width;
-		ctx->Ysize = ctx->global_grid->height;
+	
 		ctx->cart = make_cart2d(ctx->global_grid->width, ctx->global_grid->height, opts->dimx, opts->dimy);
 		cart2d_grid_split(ctx->cart, ctx->global_grid);
 
@@ -282,8 +275,6 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 			MPI_Send(grid->dbl, grid->pw*grid->ph, MPI_DOUBLE, i, i * 4  + 3, ctx->comm2d);//, &req[(i-1)*4+3]);
 			MPI_Send(&ctx->cart->pos[0][coords[0]], 1, MPI_INTEGER, i, i*4+4, ctx->comm2d);
 			MPI_Send(&ctx->cart->pos[1][coords[1]], 1, MPI_INTEGER, i, i*4+5, ctx->comm2d);
-			MPI_Send(&ctx->Xsize, 1, MPI_INTEGER, i, i*4+6, ctx->comm2d);
-			MPI_Send(&ctx->Ysize, 1, MPI_INTEGER, i, i*4+7, ctx->comm2d);
 			
 
 		}
@@ -305,9 +296,7 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		MPI_Recv(new_grid->dbl, new_grid->pw*new_grid->ph, MPI_DOUBLE, 0, ctx->rank * 4 +3, ctx->comm2d, &status[3]);
 		MPI_Recv(&ctx->grid_coords[0], 1, MPI_INTEGER, 0, ctx->rank*4+4, ctx->comm2d, &status[4]);
 		MPI_Recv(&ctx->grid_coords[1], 1, MPI_INTEGER, 0, ctx->rank*4+5, ctx->comm2d, &status[5]);
-		MPI_Recv(&ctx->Xsize, 1, MPI_INTEGER, 0, ctx->rank*4+6, ctx->comm2d, &status[6]);
-		//printf("test:%d", ctx->cart->pos[0][coords[3]]);
-		MPI_Recv(&ctx->Ysize, 1, MPI_INTEGER, 0, ctx->rank*4+7, ctx->comm2d, &status[7]);
+		
 		
 
 	}
@@ -355,13 +344,6 @@ void exchng2d(ctx_t *ctx) {
 	 int height = grid->ph;
 	 
 	 int* data = grid->data;
-	 int coords[2] ;
-	 int north_coords[2]; 
-	 int south_coords[2];
-	 int east_coords[2];
-	 int west_coords[2];
-	 ctx->grid_width = 0;
-	 ctx->grid_height = 0;
 
 	 MPI_Datatype ns_transfer;
 	 MPI_Datatype ew_transfer;
@@ -369,12 +351,7 @@ void exchng2d(ctx_t *ctx) {
 	 //MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
 	 MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
 	 
-	 //we obtain the coords on our global for all of our peers
-	 MPI_Cart_coords(ctx->comm2d, ctx->north_peer,2, north_coords);
-	 MPI_Cart_coords(ctx->comm2d, ctx->rank, 2, coords);
-	 MPI_Cart_coords(ctx->comm2d, ctx->south_peer, 2, south_coords);
-	 MPI_Cart_coords(ctx->comm2d, ctx->east_peer, 2, east_coords);
-	 MPI_Cart_coords(ctx->comm2d, ctx->west_peer, 2, west_coords);
+
 
 	 
 	 int* send_north = (int*)data + 1 * width;
@@ -393,25 +370,9 @@ void exchng2d(ctx_t *ctx) {
 	 
 	 
 	 MPI_Sendrecv(send_south, 1, ns_transfer, ctx->south_peer, 0, recv_north, 1, ns_transfer, ctx->north_peer, 0, ctx->comm2d, status);
-	 //fprintf(stderr, "1 : sent from %d, to %d\n", ctx->rank, ctx->south_peer);
 	 MPI_Sendrecv(send_north, 1, ns_transfer, ctx->north_peer, 0, recv_south, 1, ns_transfer, ctx->south_peer, 0, ctx->comm2d, status);
-	 //fprintf(stderr, "2 : sent from %d, to %d\n", ctx->rank, ctx->north_peer);
 	 MPI_Sendrecv(send_east, 1, ew_transfer, ctx->east_peer, 0, recv_west, 1, ew_transfer, ctx->west_peer, 0, ctx->comm2d, status);
-	 //fprintf(stderr, "3 : sent from %d, to %d\n", ctx->rank, ctx->east_peer);
 	 MPI_Sendrecv(send_west, 1, ew_transfer, ctx->west_peer, 0, recv_east, 1, ew_transfer, ctx->east_peer, 0, ctx->comm2d, status);
-	 //fprintf(stderr, "4 : sent from %d, to %d\n", ctx->rank, ctx->west_peer);
-	 //printf("sent north, my rank is %d, my grid addr is %d, my send addr is %d and my recv addr is %d\n my grid width is %d, my grid height is %d, X coord is %d, Y coord is %d\n", ctx->rank, addr[2], offset_send_south, offset_recv_north, ctx->grid_width, ctx->grid_height, addr[0], addr[1]);
-	 //fprintf(stderr,"before barrier, rang = %d\n", ctx->rank);
-	 //MPI_Barrier(ctx->comm2d);
-	 //fprintf(stderr,"after echng, rang = %d\n", ctx->rank);
-	 /* test de fonctionnement des echanges de borders
-	 if(ctx->rank == 0){
-		 printf("we are here\n");
-	 }
-	 */
-
-	 
-
 	 
 }
 
