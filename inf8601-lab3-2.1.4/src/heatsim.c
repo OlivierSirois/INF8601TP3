@@ -354,17 +354,17 @@ void exchng2d(ctx_t *ctx) {
 
 
 	 
-	 int* send_north = (int*)data + 1 * width;
-	 int* recv_north = (int*)data;
-	 int* send_south = (int*)data + (height - 2)*width;
-	 int* recv_south = (int*)data + (height - 1)*width;
-	 int* send_east = (int*)data + (width - 2) * width;
-	 int* recv_east = (int*)data + (width - 1) * width;
-	 int* send_west = (int*)data;
-	 int* recv_west = (int*)data + 1;
+	 double* send_north = (double*)ctx->next_grid->dbl + 1 * width;
+	 double* recv_north = (double*)ctx->next_grid->dbl;
+	 double* send_south = (double*)ctx->next_grid->dbl + (height - 2)*width;
+	 double* recv_south = (double*)ctx->next_grid->dbl + (height - 1)*width;
+	 double* send_east = (double*)ctx->next_grid->dbl + (width - 2);
+	 double* recv_east = (double*)ctx->next_grid->dbl + (width - 1);
+	 double* send_west = (double*)ctx->next_grid->dbl;
+	 double* recv_west = (double*)ctx->next_grid->dbl + 1;
 
-	 MPI_Type_contiguous(width, MPI_INTEGER, &ns_transfer);
-	 MPI_Type_vector(height, 1, width, MPI_INTEGER, &ew_transfer);
+	 MPI_Type_contiguous(width, MPI_DOUBLE, &ns_transfer);
+	 MPI_Type_vector(height, 1, width, MPI_DOUBLE, &ew_transfer);
 	 MPI_Type_commit(&ns_transfer);
 	 MPI_Type_commit(&ew_transfer);
 	 
@@ -394,7 +394,8 @@ int gather_result(ctx_t *ctx, opts_t *opts) {
 	if(ctx->rank == 0){
 		int x = opts->dimx;
 		int y = opts->dimy;
-		int* grid_widths;
+		int* widths;
+		int* heights;
 
 		for(int j = 0; j < y; j++){
 			for(int i = 0; i < x; i++){
