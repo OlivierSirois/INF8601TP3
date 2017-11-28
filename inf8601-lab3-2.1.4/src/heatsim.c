@@ -32,6 +32,8 @@
 #define MAX_TEMP 1000.0
 #define DIM_2D 2
 
+int offset_from_coords(int x, int y, int width);
+
 typedef struct ctx {
 	cart2d_t *cart;
 	grid_t *global_grid;
@@ -46,11 +48,16 @@ typedef struct ctx {
 	int dims[DIM_2D];
 	int isperiodic[DIM_2D];
 	int coords[DIM_2D];
+	int grid_coords[DIM_2D];
+	int Xsize;
+	int Ysize;
 	int reorder;
 	int north_peer;
 	int south_peer;
 	int east_peer;
 	int west_peer;
+	int grid_width;
+	int grid_height;
 	MPI_Datatype vector;
 } ctx_t;
 
@@ -216,8 +223,6 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	ctx->reorder = 0;
 	grid_t *new_grid = NULL;
 	//printf("This is the number of processes: %d\n", ctx->numprocs);
-	printf(ctx->verbose);
-
 
 	MPI_Cart_create(MPI_COMM_WORLD,2,ctx->dims,ctx->isperiodic,ctx->reorder,&ctx->comm2d);
 	MPI_Cart_shift(ctx->comm2d,1,1,&ctx->north_peer,&ctx->south_peer);
@@ -229,12 +234,13 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	 * ge du disque
 	 * et transfert chaque section aux autres processus
 	 */
-	MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
-	MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
-
+	//MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
+	MPI_Status *status = calloc(16*ctx->numprocs, sizeof(MPI_Status));
+	ctx->Xsize = opts->dimx;
+	ctx->Ysize = opts->dimy;
 	
 
-	printf("we are here\n");
+	//printf("we are here\n");
 	if(ctx->rank == 0){
 		 /* load input image */
 		image_t *image = load_png(opts->input);
@@ -247,18 +253,22 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		/* grid is normalized to one, multiply by MAX_TEMP */
 		grid_multiply(ctx->global_grid, MAX_TEMP);
 		/* 2D decomposition */
-	
+		ctx->Xsize = ctx->global_grid->width;
+		ctx->Ysize = ctx->global_grid->height;
 		ctx->cart = make_cart2d(ctx->global_grid->width, ctx->global_grid->height, opts->dimx, opts->dimy);
 		cart2d_grid_split(ctx->cart, ctx->global_grid);
-	 
-		
 
 
 		/*
 		 * FIXME: send grid dimensions and data
 		 * Comment traiter le cas de rank=0 ?
 		 */		
+		
 		int coords[DIM_2D];
+		MPI_Cart_coords(ctx->comm2d, 0, DIM_2D, coords);
+		ctx->grid_coords[0] = ctx->cart->pos[0][coords[0]];
+		ctx->grid_coords[1] = ctx->cart->pos[1][coords[1]];
+
 		for(int i = 1; i < ctx->numprocs;i++)
 		{
 			int coords[DIM_2D];
@@ -269,6 +279,10 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 			MPI_Send(&grid->height, 1, MPI_INTEGER, i, i * 4  + 1, ctx->comm2d);//, &req[(i-1)*4+1]);
 			MPI_Send(&grid->padding, 1 , MPI_INTEGER, i, i * 4  + 2, ctx->comm2d);//, &req[(i-1)*4+2]);
 			MPI_Send(grid->dbl, grid->pw*grid->ph, MPI_DOUBLE, i, i * 4  + 3, ctx->comm2d);//, &req[(i-1)*4+3]);
+			MPI_Send(&ctx->cart->pos[0][coords[0]], 1, MPI_INTEGER, i, i*4+4, ctx->comm2d);
+			MPI_Send(&ctx->cart->pos[1][coords[1]], 1, MPI_INTEGER, i, i*4+5, ctx->comm2d);
+			MPI_Send(&ctx->Xsize, 1, MPI_INTEGER, i, i*4+6, ctx->comm2d);
+			MPI_Send(&ctx->Ysize, 1, MPI_INTEGER, i, i*4+7, ctx->comm2d);
 			
 
 		}
@@ -286,9 +300,14 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		MPI_Recv(&width, 1, MPI_INTEGER, 0, ctx->rank*4+0, ctx->comm2d, &status[0]);
 		MPI_Recv(&height, 1, MPI_INTEGER, 0, ctx->rank*4+1, ctx->comm2d, &status[1]);
 		MPI_Recv(&padding, 1, MPI_INTEGER, 0, ctx->rank*4+2, ctx->comm2d, &status[2]);
-
 		new_grid = make_grid(width, height, padding);
 		MPI_Recv(new_grid->dbl, new_grid->pw*new_grid->ph, MPI_DOUBLE, 0, ctx->rank * 4 +3, ctx->comm2d, &status[3]);
+		MPI_Recv(&ctx->grid_coords[0], 1, MPI_INTEGER, 0, ctx->rank*4+4, ctx->comm2d, &status[4]);
+		MPI_Recv(&ctx->grid_coords[1], 1, MPI_INTEGER, 0, ctx->rank*4+5, ctx->comm2d, &status[5]);
+		MPI_Recv(&ctx->Xsize, 1, MPI_INTEGER, 0, ctx->rank*4+6, ctx->comm2d, &status[6]);
+		//printf("test:%d", ctx->cart->pos[0][coords[3]]);
+		MPI_Recv(&ctx->Ysize, 1, MPI_INTEGER, 0, ctx->rank*4+7, ctx->comm2d, &status[7]);
+		
 
 	}
 
@@ -331,162 +350,117 @@ void exchng2d(ctx_t *ctx) {
 	 *  FIXME: Echanger les bordures avec les voisins
 	 * 4 echanges doivent etre effectues
 	 */
-	//TODO("lab3");
-	/**/
-	 printf("we are here\n");
-	 grid_t *grid = ctx->next_grid;
 	 
+	 grid_t *grid = ctx->next_grid;	 
 	 int width = grid->pw;
 	 int height = grid->ph;
 	 
-	 int *data = grid->data;
-	 int* rank = ctx->rank;
-	 //MPI_Comm comm = ctx->comm2d;
-	 int* coords ;
-
+	 int* data = grid->data;
+	 int coords[2] ;
 	 int north_coords[2]; 
 	 int south_coords[2];
 	 int east_coords[2];
 	 int west_coords[2];
-	 int i;
-	 int grid_width;
-	 int grid_height;
+	 ctx->grid_width = 0;
+	 ctx->grid_height = 0;
 
+	 MPI_Datatype ns_transfer;
+	 MPI_Datatype ew_transfer;
 	 
+	 //MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
+	 MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
 	 
-
-	 //Calculating the actual grid widths and height, the ones received in our cart field are inacurate, they are rounding up thus losing
-	 // the precision. We are calculating directly off our decomposition of our image in grid and the actual width of the image.
-	 /**/
-	 
-
 	 //we obtain the coords on our global for all of our peers
-	 MPI_Cart_coords(ctx->comm2d,ctx->north_peer,2, &north_coords);
-	 //MPI_Cart_coords(ctx->comm2d, ctx->rank, 2, &coords);
-	 MPI_Cart_coords(ctx->comm2d, ctx->south_peer, 2, &south_coords);
-	 MPI_Cart_coords(ctx->comm2d, ctx->east_peer, 2, &east_coords);
-	 MPI_Cart_coords(ctx->comm2d, ctx->west_peer, 2, &west_coords);
+	 MPI_Cart_coords(ctx->comm2d, ctx->north_peer,2, north_coords);
+	 MPI_Cart_coords(ctx->comm2d, ctx->rank, 2, coords);
+	 MPI_Cart_coords(ctx->comm2d, ctx->south_peer, 2, south_coords);
+	 MPI_Cart_coords(ctx->comm2d, ctx->east_peer, 2, east_coords);
+	 MPI_Cart_coords(ctx->comm2d, ctx->west_peer, 2, west_coords);
+
 	 
-     if(ctx->dims[0] > 1){
-		grid_width = ctx->cart->pos[0][1] - ctx->cart->pos[0][0];
-	 } else{
-		 grid_width = ctx->cart->width;
+	 /**/
+	 if(width > ctx->Xsize){
+		 width = ctx->Xsize;
+	 } else if(height > ctx->Ysize){
+		 height = ctx->Ysize;
 	 }	 
-	 if(ctx->dims[1] > 1){
-		 grid_height = ctx->cart->pos[1][1] - ctx->cart->pos[1][0];
+	 //making the cart field for all of our nodes.
+	 if(ctx->rank != 0){
+		ctx->cart = make_cart2d(ctx->Xsize, ctx->Ysize, ctx->dims[0], ctx->dims[1]);
+	 	cart2d_grid_split(ctx->cart, ctx->global_grid);
 	 } else{
-		 grid_height = ctx->cart->height;
+		 //printf("width = %d, height = %d\n",width, height);
 	 }
+	 
+
+	 
 	 //assigning values to our borders
 	 //our addresses to specify the start and end point of the borders on our origin on our grid
-	 
-	 //int north_start_org = ctx->cart->pos[0][coords[0]] + ctx->cart->pos[1][coords[1]]*grid_width;
-	 //printf("we are here");
-
-	 /*
-	 int* north_end_org ;
-	 int* south_start_org;
-	 int* south_end_org;
-	 int* east_start_org;
-	 int* east_end_org;
-	 int* west_start_org;
-	 int* west_end_org;
-	 //same thing, but next time, we do it for our destinations
-	 int* north_start_dest;
-	 int* north_end_dest;
-	 int* south_start_dest;
-	 int* south_end_dest;
-	 int* east_start_dest;
-	 int* east_end_dest;
-	 int* west_start_dest;
-	 int* west_end_dest;*/
-	 
-	 printf("test1 : %d\n ", ctx->cart->pos[0][3]);
-	 
-	 
-	 
-
-	 
-	 if (ctx->rank == 1){
-		//printf("we are here");
-		//printf("north start org : %d\n", north_start_org);
-		//printf("coordsx %d \n coordsy %d \n", ctx->coords[0], ctx->coords[1]);
-		//printf("north start X: %d \n",  ctx->cart->pos[1][ctx->coords[1]]*grid_width);
-//ctx->cart->pos[0][ctx->coords[0]]
-		//printf("these are the north coords %d, %d \n", north_coords[0], north_coords[1]);
-		//printf("these are my coords %d, %d\n", ctx->coords[0], ctx->coords[1]);
-		//printf("these are the west coords, %d, %d\n", west_coords[0], west_coords[1]);
-		//printf("these are the east coords, %d, %d \n", east_coords[0], east_coords[1]);
-		//printf("This is the width %d\n",width);
-	 	//printf("this is the heigh %d\n", height);
-		 
-		 /**/
-		 printf("grid width is : %d\n", grid_width);
-		 printf("grid height is : %d\n", grid_height);
-		 printf("These are the X positions in order ");
-		 for(i=0; i < ctx->dims[0]; i++){
-			printf("%d, ",ctx->cart->pos[0][i]);
-		 }
-		 printf("\n");
-
-		 printf("These are the Y positions in order");
-		 for(int y = 0; y < ctx->dims[1]; y++){
-			 printf("%d, ",ctx->cart->pos[1][y]);
-		 }
-		 printf("\n");
-		 
-		 
-		 
-		
+	 int addr[3] = {ctx->grid_coords[0], ctx->grid_coords[1], offset_from_coords(ctx->grid_coords[0], ctx->grid_coords[1], ctx->Xsize)} ;
+	 //int north_addr[3] = {ctx->cart->pos[0][north_coords[0]], ctx->cart->pos[1][north_coords[1]], ctx->cart->pos[1][north_coords[1]] * ctx->Xsize + ctx->cart->pos[0][north_coords[0]]};
+	 int south_addr[3] = {ctx->cart->pos[0][south_coords[0]], ctx->cart->pos[1][south_coords[1]], ctx->cart->pos[1][south_coords[1]] * ctx->Xsize + ctx->cart->pos[0][south_coords[0]]};
+	 int east_addr[3] = {ctx->cart->pos[0][east_coords[0]], ctx->cart->pos[1][east_coords[1]], ctx->cart->pos[1][east_coords[1]] * ctx->Xsize + ctx->cart->pos[0][east_coords[0]]};
+	 //int west_addr[3] = {ctx->cart->pos[0][west_coords[0]], ctx->cart->pos[1][west_coords[1]], ctx->cart->pos[1][west_coords[1]] * ctx->Xsize + ctx->cart->pos[0][west_coords[0]]};
+	 //asd
+	 if (ctx->dims[0] ==1){
+		ctx->grid_width = ctx->Xsize; 
+	 } else if(((east_addr[0] - addr[0]) < 0) && (ctx->dims[0] > 1)){
+		ctx->grid_width = ctx->Xsize - addr[0];
+	 } else if(ctx->dims[0] > 1){
+		ctx->grid_width = east_addr[0] - addr[0];
 	 }
-	 
+	 if(ctx->dims[1] == 1){
+		 ctx->grid_height = ctx->Ysize;
+	 } else if(((south_addr[1] - addr[1]) < 0) && (ctx->dims[1] > 1)){
+		 ctx->grid_height = ctx->Ysize - addr[1];
+	 } else if(ctx->dims[1] > 1){
+		 ctx->grid_height = south_addr[1] - addr[1];
+	 }
+	 if((ctx->grid_height == 0) || (ctx->grid_width == 0)){
+		 printf("we have an error, cannot compute ctx->grid_height or ctx->grid_width on node %d", ctx->rank);
+	 }
+	 //printf("my pos : %d, south pos: %d, grid height : %d\n",addr[1], south_addr[1], ctx->grid_height);
+	 MPI_Type_contiguous(ctx->grid_width, MPI_INTEGER, &ns_transfer);
+	 MPI_Type_vector(ctx->grid_height, 1, ctx->Xsize, MPI_INTEGER, &ew_transfer);
+	 MPI_Type_commit(&ns_transfer);
+	 MPI_Type_commit(&ew_transfer);
+
+	 int* send_south =(int*)data +  offset_from_coords(addr[0], addr[1] + ctx->grid_height-2, ctx->Xsize);
+	 int* send_north = (int*)data + offset_from_coords(addr[0], addr[1] + 1, ctx->Xsize);
+	 int* send_east =(int*)data +  offset_from_coords(addr[0] + ctx->grid_width - 2, addr[1], ctx->Xsize);
+	 int* send_west = (int*)data + offset_from_coords(addr[0] + 1, addr[1], ctx->Xsize);
+	 int* recv_south =(int*)data +  offset_from_coords(addr[0], addr[1] + ctx->grid_height - 1, ctx->Xsize);
+	 int* recv_north =(int*)data +  offset_from_coords(addr[0], addr[1], ctx->Xsize);
+	 int* recv_east =(int*)data +  offset_from_coords(addr[0] + ctx->grid_height - 1, addr[1], ctx->Xsize);
+	 int* recv_west =(int*)data +  offset_from_coords(addr[0], addr[1], ctx->Xsize);
+
+	
 
 	 
+	 MPI_Sendrecv(send_south, 1, ns_transfer, ctx->south_peer, 0, recv_north, 1, ns_transfer, ctx->north_peer, 0, ctx->comm2d, status);
 	 
-	 MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
-	 MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
-
-
-	 //printf("remainder of %d, is %d\n", ctx->north_peer, ctx->north_peer%ctx->dims[1]);
-	 //int* dataofcoords = data + coords[0]*sizeof(int) + coords[1]*sizeof(int)*width;
+	 MPI_Sendrecv(send_north, 1, ns_transfer, ctx->north_peer, 1, recv_south, 1, ns_transfer, ctx->south_peer, 1, ctx->comm2d, status);
 	 
-	 //printf("this is the results = %d of %d, %d\n", *dataofcoords, coords[0], coords[1]);
-
-	 //printf("coords are %d, %d , north is %d \n", coords[0], coords[1], ctx->north_peer);
+	 MPI_Sendrecv(send_east, 1, ew_transfer, ctx->east_peer, 2, recv_west, 1, ew_transfer, ctx->west_peer, 2, ctx->comm2d, status);
 	 
-
-
-	 //printf("north peer is %d \n", ctx->north_peer);
-	 //printf("north peer %d, our position %d, %d \n", ctx->north_peer, coords[0], coords[1]);
-	 //MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
-	 //MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
+	 MPI_Sendrecv(send_west, 1, ew_transfer, ctx->west_peer, 3, recv_east, 1, ew_transfer, ctx->east_peer, 3, ctx->comm2d, status);
+	 //printf("sent north, my rank is %d, my grid addr is %d, my send addr is %d and my recv addr is %d\n my grid width is %d, my grid height is %d, X coord is %d, Y coord is %d\n", ctx->rank, addr[2], offset_send_south, offset_recv_north, ctx->grid_width, ctx->grid_height, addr[0], addr[1]);
 	 
-
-
-	 //printf("I am %d. my north peer is %d, south peer is %d, west peer is %d, east peer is %d \n", ctx->rank, ctx->north_peer, ctx->south_peer, ctx->west_peer, ctx->east_peer);
-	 //int *offset_send = data + (row_end - 2) * width;
-	 //int *offset_recv = data + row_start * width;
-	 //MPI_Sendrecv(offsetns_send, width, MPI_INTEGER, ctx->south_peer, 0, offsetns_recv, width, MPI_INTEGER, ctx->north_peer, 0, comm, &status[1]);
-
-
-	 //MPI_Sendrecv(offsetns_send, width, MPI_INTEGER, ctx->north_peer, 0, offsetns_recv, width, MPI_INTEGER, ctx->south_peer, 0, comm, &status[2]);
+	 MPI_Barrier(ctx->comm2d);
+	 
+	 /* test de fonctionnement des echanges de borders
+	 if(ctx->rank == 0){
+		 printf("we are here\n");
+	 }
+	 */
 
 	 
-	 
-	 MPI_Barrier(MPI_COMM_WORLD);
-	 //printf("north peer is %d \n", ctx->north_peer);
-	 //printf("south peer is %d \n", ctx->south_peer);
-	 //printf("west peer is %d \n", ctx->west_peer);
-	 //printf("east peer is %d \n", ctx->east_peer);
-	 
 
-	 
 	 
 }
 
 int gather_result(ctx_t *ctx, opts_t *opts) {
-	//TODO("lab3");
-
+	
 	int ret = 0;
 	grid_t *local_grid = grid_padding(ctx->next_grid, 0);
 	if (local_grid == NULL)
@@ -496,11 +470,25 @@ int gather_result(ctx_t *ctx, opts_t *opts) {
 	 * FIXME: transfer simulation results from all process to rank=0
 	 * use grid for this purpose
 	 */
+	if(ctx->rank == 0){
+		int x = opts->dimx;
+		int y = opts->dimy;
+		int* grid_widths;
+
+		for(int j = 0; j < y; j++){
+			for(int i = 0; i < x; i++){
+
+			}
+		}
+	}
+	if(ctx->rank != 0){
+		printf("grid width us %d \n", ctx->grid_height);
+	}
 
 	/* now we can merge all data blocks, reuse global_grid */
-	//cart2d_grid_merge(ctx->cart, ctx->global_grid);
+	cart2d_grid_merge(ctx->cart, ctx->global_grid);
 	/* temporairement copie de next_grid */
-	grid_copy(ctx->next_grid, ctx->global_grid);
+	//grid_copy(ctx->next_grid, ctx->global_grid);
 
 	done: free_grid(local_grid);
 	return ret;
@@ -551,14 +539,16 @@ int main(int argc, char **argv) {
 			fprintf(ctx->log, "exchng2d\n");
 			fdump_grid(ctx->curr_grid, ctx->log);
 		}
+		
 		heat_diffuse(ctx->curr_grid, ctx->next_grid);
 		if (ctx->verbose) {
 			fprintf(ctx->log, "heat_diffuse\n");
 			fdump_grid(ctx->next_grid, ctx->log);
 		}
+		
 		SWAP(ctx->curr_grid, ctx->next_grid);
+		
 	}
-
 	MPI_Barrier(MPI_COMM_WORLD);
 	if (gather_result(ctx, &opts) < 0)
 		goto err;
@@ -585,3 +575,6 @@ err:
 	goto done;
 }
 
+int offset_from_coords(int x, int y, int width){
+	return x + y*width;
+}

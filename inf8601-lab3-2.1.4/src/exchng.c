@@ -441,7 +441,7 @@ int main(int argc, char **argv) {
 		ctx->verbose = 0;
 	}
 
-	for (rep = 0; rep < 10000; rep++) {
+	for (rep = 0; rep < 100; rep++) {
 		exchng1d(ctx);
 		//hog(1000);
 	}
