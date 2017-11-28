@@ -342,6 +342,8 @@ void exchng2d(ctx_t *ctx) {
 	 grid_t *grid = ctx->next_grid;	 
 	 int width = grid->pw;
 	 int height = grid->ph;
+	 
+	 int* data = grid->data;
 
 	 MPI_Datatype ns_transfer;
 	 MPI_Datatype ew_transfer;
@@ -352,14 +354,14 @@ void exchng2d(ctx_t *ctx) {
 
 
 	 
-	 double* send_north = (double*)ctx->next_grid->dbl + 1 * width;
-	 double* recv_north = (double*)ctx->next_grid->dbl;
-	 double* send_south = (double*)ctx->next_grid->dbl + (height - 2)*width;
-	 double* recv_south = (double*)ctx->next_grid->dbl + (height - 1)*width;
-	 double* send_east = (double*)ctx->next_grid->dbl + (width - 2);
-	 double* recv_east = (double*)ctx->next_grid->dbl + (width - 1);
+	 double* send_north = (double*)ctx->next_grid->dbl;
+	 double* recv_north = (double*)ctx->next_grid->dbl - 1 * width;
+	 double* send_south = (double*)ctx->next_grid->dbl + height - 1 * width;
+	 double* recv_south = (double*)ctx->next_grid->dbl + (height)*width;
+	 double* send_east = (double*)ctx->next_grid->dbl + (width - 1);
+	 double* recv_east = (double*)ctx->next_grid->dbl + (width);
 	 double* send_west = (double*)ctx->next_grid->dbl;
-	 double* recv_west = (double*)ctx->next_grid->dbl + 1;
+	 double* recv_west = (double*)ctx->next_grid->dbl -1;
 
 	 MPI_Type_contiguous(width, MPI_DOUBLE, &ns_transfer);
 	 MPI_Type_vector(height, 1, width, MPI_DOUBLE, &ew_transfer);
@@ -376,14 +378,15 @@ void exchng2d(ctx_t *ctx) {
 
 
 int gather_result(ctx_t *ctx, opts_t *opts) {
-	 int ret = 0;
-    
-    grid_t* new_grid = NULL;
-    grid_t *local_grid = grid_padding(ctx->next_grid, 0);
-    if (local_grid == NULL)
-        goto err;
+	//TODO("lab3");
 
-    MPI_Status *status = (MPI_Status *) calloc(ctx->numprocs, sizeof(MPI_Status));
+	int ret = 0;
+	grid_t *local_grid = grid_padding(ctx->next_grid, 0);
+	if (local_grid == NULL)
+		goto err;
+
+	grid_t *new_grid = NULL;
+	MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
 
     if(ctx->rank == 0)
     {
@@ -406,9 +409,9 @@ int gather_result(ctx_t *ctx, opts_t *opts) {
     {
         new_grid = grid_padding(ctx->next_grid, 0);
         MPI_Send(new_grid->dbl, new_grid->height*new_grid->width, MPI_DOUBLE, 0, DIM_2D, ctx->comm2d);
-    }
-    free(status);
-    
+}
+	
+	
 	done: free_grid(local_grid);
 	return ret;
 	err: ret = -1;
