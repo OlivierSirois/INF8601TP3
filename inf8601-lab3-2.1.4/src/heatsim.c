@@ -258,7 +258,7 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		ctx->cart = make_cart2d(ctx->global_grid->width, ctx->global_grid->height, opts->dimx, opts->dimy);
 		cart2d_grid_split(ctx->cart, ctx->global_grid);
 
-
+		printf("salut");
 		/*
 		 * FIXME: send grid dimensions and data
 		 * Comment traiter le cas de rank=0 ?
@@ -271,10 +271,12 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 
 		for(int i = 1; i < ctx->numprocs;i++)
 		{
+			
 			int coords[DIM_2D];
 			MPI_Cart_coords(ctx->comm2d, i, DIM_2D, coords);
 			grid_t *grid = cart2d_get_grid(ctx->cart, coords[0], coords[1]);	
-
+			
+			
 			MPI_Send(&grid->width, 1, MPI_INTEGER, i, i * 4 +0, ctx->comm2d);//, &req[(i-1)*4+0]);
 			MPI_Send(&grid->height, 1, MPI_INTEGER, i, i * 4  + 1, ctx->comm2d);//, &req[(i-1)*4+1]);
 			MPI_Send(&grid->padding, 1 , MPI_INTEGER, i, i * 4  + 2, ctx->comm2d);//, &req[(i-1)*4+2]);
@@ -350,6 +352,7 @@ void exchng2d(ctx_t *ctx) {
 	 *  FIXME: Echanger les bordures avec les voisins
 	 * 4 echanges doivent etre effectues
 	 */
+
 	 
 	 grid_t *grid = ctx->next_grid;	 
 	 int width = grid->pw;
@@ -459,13 +462,17 @@ void exchng2d(ctx_t *ctx) {
 	 
 }
 
+
 int gather_result(ctx_t *ctx, opts_t *opts) {
-	
+	//TODO("lab3");
+
 	int ret = 0;
 	grid_t *local_grid = grid_padding(ctx->next_grid, 0);
 	if (local_grid == NULL)
 		goto err;
 
+	grid_t *new_grid = NULL;
+	MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
 	/*
 	 * FIXME: transfer simulation results from all process to rank=0
 	 * use grid for this purpose
