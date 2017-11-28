@@ -342,8 +342,6 @@ void exchng2d(ctx_t *ctx) {
 	 grid_t *grid = ctx->next_grid;	 
 	 int width = grid->pw;
 	 int height = grid->ph;
-	 
-	 int* data = grid->data;
 
 	 MPI_Datatype ns_transfer;
 	 MPI_Datatype ew_transfer;
@@ -378,40 +376,39 @@ void exchng2d(ctx_t *ctx) {
 
 
 int gather_result(ctx_t *ctx, opts_t *opts) {
-	//TODO("lab3");
+	 int ret = 0;
+    
+    grid_t* new_grid = NULL;
+    grid_t *local_grid = grid_padding(ctx->next_grid, 0);
+    if (local_grid == NULL)
+        goto err;
 
-	int ret = 0;
-	grid_t *local_grid = grid_padding(ctx->next_grid, 0);
-	if (local_grid == NULL)
-		goto err;
+    MPI_Status *status = (MPI_Status *) calloc(ctx->numprocs, sizeof(MPI_Status));
 
-	grid_t *new_grid = NULL;
-	MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
-	/*
-	 * FIXME: transfer simulation results from all process to rank=0
-	 * use grid for this purpose
-	 */
-	if(ctx->rank == 0){
-		int x = opts->dimx;
-		int y = opts->dimy;
-		int* widths;
-		int* heights;
-
-		for(int j = 0; j < y; j++){
-			for(int i = 0; i < x; i++){
-
-			}
-		}
-	}
-	if(ctx->rank != 0){
-		//printf("grid width us %d \n", ctx->grid_height);
-	}
-
-	/* now we can merge all data blocks, reuse global_grid */
-	cart2d_grid_merge(ctx->cart, ctx->global_grid);
-	/* temporairement copie de next_grid */
-	//grid_copy(ctx->next_grid, ctx->global_grid);
-
+    if(ctx->rank == 0)
+    {
+        
+        for (int i = 1; i < ctx->numprocs; ++i)
+        {
+        	int processCoordinates[2];
+            MPI_Cart_coords(ctx->comm2d, i, DIM_2D, processCoordinates);
+            new_grid = cart2d_get_grid(ctx->cart, processCoordinates[0], processCoordinates[1]);
+            MPI_Recv(new_grid->dbl, new_grid->width*new_grid->height, MPI_DOUBLE, i, DIM_2D, ctx->comm2d,status);
+        }
+  
+      int coord[DIM_2D];
+      MPI_Cart_coords(ctx->comm2d, ctx->rank, DIM_2D, coord);
+      new_grid = cart2d_get_grid(ctx->cart, coord[0], coord[1]);
+      grid_copy(ctx->next_grid, new_grid);
+      cart2d_grid_merge(ctx->cart, ctx->global_grid);
+    }
+    else
+    {
+        new_grid = grid_padding(ctx->next_grid, 0);
+        MPI_Send(new_grid->dbl, new_grid->height*new_grid->width, MPI_DOUBLE, 0, DIM_2D, ctx->comm2d);
+    }
+    free(status);
+    
 	done: free_grid(local_grid);
 	return ret;
 	err: ret = -1;
