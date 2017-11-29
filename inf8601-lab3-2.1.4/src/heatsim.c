@@ -359,8 +359,8 @@ void exchng2d(ctx_t *ctx) {
 	double* send_west = (double*)ctx->curr_grid->dbl + padding*width + padding;
  	double* recv_west = (double*)send_west - 1;
 
-	MPI_Type_contiguous(width, MPI_DOUBLE, &ns_transfer);
-	MPI_Type_vector(height, 1, width, MPI_DOUBLE, &ew_transfer);
+	MPI_Type_contiguous(ctx->curr_grid->width, MPI_DOUBLE, &ns_transfer);
+	MPI_Type_vector(ctx->curr_grid->height, 1, width, MPI_DOUBLE, &ew_transfer);
 	MPI_Type_commit(&ns_transfer);
 	MPI_Type_commit(&ew_transfer);
 	 
