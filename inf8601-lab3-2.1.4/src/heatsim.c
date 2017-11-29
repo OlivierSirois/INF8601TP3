@@ -336,49 +336,43 @@ void dump_ctx(ctx_t *ctx) {
 }
 
 void exchng2d(ctx_t *ctx) {
-	
 
-	 
-	 grid_t *grid = ctx->next_grid;	 
-	 int width = grid->pw;
-	 int height = grid->ph;
-	 
-	 int* data = grid->data;
+	grid_t *grid = ctx->curr_grid;	 
+	int width = grid->pw;
+	int height = grid->ph;
+	int padding = grid->padding;
 
-	 MPI_Datatype ns_transfer;
-	 MPI_Datatype ew_transfer;
+	MPI_Datatype ns_transfer;
+	MPI_Datatype ew_transfer;
 	 
-	 //MPI_Request *req = calloc(4*ctx->numprocs, sizeof(MPI_Request));
-	 MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
+	MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
 	 
+	double* send_north = (double*)ctx->curr_grid->dbl + padding + width;
+	double* recv_north = (double*)ctx->curr_grid->dbl + padding;
+	double* send_south = (double*)ctx->curr_grid->dbl + (height - padding - 1) * width + padding;
+	double* recv_south = (double*)ctx->curr_grid->dbl + (height - padding)*width + padding;
 
 
-	 
-	 double* send_north = (double*)ctx->next_grid->dbl;
-	 double* recv_north = (double*)ctx->next_grid->dbl - 1 * width;
-	 double* send_south = (double*)ctx->next_grid->dbl + height - 1 * width;
-	 double* recv_south = (double*)ctx->next_grid->dbl + (height)*width;
-	 double* send_east = (double*)ctx->next_grid->dbl + (width - 1);
-	 double* recv_east = (double*)ctx->next_grid->dbl + (width);
-	 double* send_west = (double*)ctx->next_grid->dbl;
-	 double* recv_west = (double*)ctx->next_grid->dbl -1;
+	double* send_east = (double*)ctx->curr_grid->dbl + (padding + 1)*width - padding - 1;
+	double* recv_east = (double*)send_east + 1;
 
-	 MPI_Type_contiguous(width, MPI_DOUBLE, &ns_transfer);
-	 MPI_Type_vector(height, 1, width, MPI_DOUBLE, &ew_transfer);
-	 MPI_Type_commit(&ns_transfer);
-	 MPI_Type_commit(&ew_transfer);
+	double* send_west = (double*)ctx->curr_grid->dbl + padding*width + padding;
+ 	double* recv_west = (double*)send_west - 1;
+
+	MPI_Type_contiguous(width, MPI_DOUBLE, &ns_transfer);
+	MPI_Type_vector(height, 1, width, MPI_DOUBLE, &ew_transfer);
+	MPI_Type_commit(&ns_transfer);
+	MPI_Type_commit(&ew_transfer);
 	 
 	 
-	 MPI_Sendrecv(send_south, 1, ns_transfer, ctx->south_peer, 0, recv_north, 1, ns_transfer, ctx->north_peer, 0, ctx->comm2d, status);
-	 MPI_Sendrecv(send_north, 1, ns_transfer, ctx->north_peer, 0, recv_south, 1, ns_transfer, ctx->south_peer, 0, ctx->comm2d, status);
-	 MPI_Sendrecv(send_east, 1, ew_transfer, ctx->east_peer, 0, recv_west, 1, ew_transfer, ctx->west_peer, 0, ctx->comm2d, status);
-	 MPI_Sendrecv(send_west, 1, ew_transfer, ctx->west_peer, 0, recv_east, 1, ew_transfer, ctx->east_peer, 0, ctx->comm2d, status);
-	 
+	MPI_Sendrecv(send_south, 1, ns_transfer, ctx->south_peer, 0, recv_north, 1, ns_transfer, ctx->north_peer, 0, ctx->comm2d, status);
+	MPI_Sendrecv(send_north, 1, ns_transfer, ctx->north_peer, 0, recv_south, 1, ns_transfer, ctx->south_peer, 0, ctx->comm2d, status);
+	MPI_Sendrecv(send_east, 1, ew_transfer, ctx->east_peer, 0, recv_west, 1, ew_transfer, ctx->west_peer, 0, ctx->comm2d, status);
+	MPI_Sendrecv(send_west, 1, ew_transfer, ctx->west_peer, 0, recv_east, 1, ew_transfer, ctx->east_peer, 0, ctx->comm2d, status);
 }
 
 
 int gather_result(ctx_t *ctx, opts_t *opts) {
-	//TODO("lab3");
 
 	int ret = 0;
 	grid_t *local_grid = grid_padding(ctx->next_grid, 0);
@@ -390,26 +384,24 @@ int gather_result(ctx_t *ctx, opts_t *opts) {
 
     if(ctx->rank == 0)
     {
-        
+        int coord[DIM_2D];
         for (int i = 1; i < ctx->numprocs; ++i)
         {
-        	int processCoordinates[2];
-            MPI_Cart_coords(ctx->comm2d, i, DIM_2D, processCoordinates);
-            new_grid = cart2d_get_grid(ctx->cart, processCoordinates[0], processCoordinates[1]);
+            MPI_Cart_coords(ctx->comm2d, i, DIM_2D, coord);
+            new_grid = cart2d_get_grid(ctx->cart, coord[0], coord[1]);
             MPI_Recv(new_grid->dbl, new_grid->width*new_grid->height, MPI_DOUBLE, i, DIM_2D, ctx->comm2d,status);
         }
-  
-      int coord[DIM_2D];
-      MPI_Cart_coords(ctx->comm2d, ctx->rank, DIM_2D, coord);
-      new_grid = cart2d_get_grid(ctx->cart, coord[0], coord[1]);
-      grid_copy(ctx->next_grid, new_grid);
-      cart2d_grid_merge(ctx->cart, ctx->global_grid);
+      
+      	MPI_Cart_coords(ctx->comm2d, ctx->rank, DIM_2D, coord);
+      	new_grid = cart2d_get_grid(ctx->cart, coord[0], coord[1]);
+      	grid_copy(ctx->next_grid, new_grid);
+      	cart2d_grid_merge(ctx->cart, ctx->global_grid);
     }
     else
     {
         new_grid = grid_padding(ctx->next_grid, 0);
         MPI_Send(new_grid->dbl, new_grid->height*new_grid->width, MPI_DOUBLE, 0, DIM_2D, ctx->comm2d);
-}
+	}
 	
 	
 	done: free_grid(local_grid);
