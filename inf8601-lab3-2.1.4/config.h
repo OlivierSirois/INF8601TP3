@@ -28,9 +28,6 @@
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
 
-/* MPI support */
-#define HAVE_MPI 1
-
 /* Define to 1 if you have the <pthread.h> header file. */
 #define HAVE_PTHREAD_H 1
 
@@ -85,9 +82,6 @@
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "inf8601-lab3"
-
-/* Define to the home page for this package. */
-#define PACKAGE_URL ""
 
 /* Define to the version of this package. */
 #define PACKAGE_VERSION "2.1.2"

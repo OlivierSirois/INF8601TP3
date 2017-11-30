@@ -260,8 +260,8 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		MPI_Cart_coords(ctx->comm2d, 0, DIM_2D, coords);
 		ctx->grid_coords[0] = ctx->cart->pos[0][coords[0]];
 		ctx->grid_coords[1] = ctx->cart->pos[1][coords[1]];
-
-		for(int i = 1; i < ctx->numprocs;i++)
+                int i;
+		for(i = 1; i < ctx->numprocs;i++)
 		{
 			
 			int coords[DIM_2D];
@@ -385,7 +385,8 @@ int gather_result(ctx_t *ctx, opts_t *opts) {
     if(ctx->rank == 0)
     {
         int coord[DIM_2D];
-        for (int i = 1; i < ctx->numprocs; ++i)
+        int i;
+        for (i = 1; i < ctx->numprocs; ++i)
         {
             MPI_Cart_coords(ctx->comm2d, i, DIM_2D, coord);
             new_grid = cart2d_get_grid(ctx->cart, coord[0], coord[1]);
