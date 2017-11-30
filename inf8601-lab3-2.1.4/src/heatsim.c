@@ -48,7 +48,6 @@ typedef struct ctx {
 	int dims[DIM_2D];
 	int isperiodic[DIM_2D];
 	int coords[DIM_2D];
-	int grid_coords[DIM_2D];
 	int reorder;
 	int north_peer;
 	int south_peer;
@@ -200,7 +199,6 @@ void free_ctx(ctx_t *ctx) {
 
 int init_ctx(ctx_t *ctx, opts_t *opts) {
 
-	ctx->numprocs = opts->dimx * opts->dimy;
 	MPI_Comm_size(MPI_COMM_WORLD, &ctx->numprocs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &ctx->rank);
 	//printf("numprocs after %d \n", ctx->numprocs);
@@ -219,6 +217,7 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 	ctx->reorder = 0;
 	grid_t *new_grid = NULL;
 	//printf("This is the number of processes: %d\n", ctx->numprocs);
+	//on creer notre communicateur cartesien
 
 	MPI_Cart_create(MPI_COMM_WORLD,2,ctx->dims,ctx->isperiodic,ctx->reorder,&ctx->comm2d);
 	MPI_Cart_shift(ctx->comm2d,1,1,&ctx->north_peer,&ctx->south_peer);
@@ -251,15 +250,10 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		ctx->cart = make_cart2d(ctx->global_grid->width, ctx->global_grid->height, opts->dimx, opts->dimy);
 		cart2d_grid_split(ctx->cart, ctx->global_grid);
 
-		/*
-		 * FIXME: send grid dimensions and data
-		 * Comment traiter le cas de rank=0 ?
-		 */		
+	        		
 		
 		int coords[DIM_2D];
 		MPI_Cart_coords(ctx->comm2d, 0, DIM_2D, coords);
-		ctx->grid_coords[0] = ctx->cart->pos[0][coords[0]];
-		ctx->grid_coords[1] = ctx->cart->pos[1][coords[1]];
                 int i;
 		for(i = 1; i < ctx->numprocs;i++)
 		{
@@ -267,14 +261,12 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 			int coords[DIM_2D];
 			MPI_Cart_coords(ctx->comm2d, i, DIM_2D, coords);
 			grid_t *grid = cart2d_get_grid(ctx->cart, coords[0], coords[1]);	
-			
+			//on envoie l'info necessaire pour les autres rangs
 			
 			MPI_Send(&grid->width, 1, MPI_INTEGER, i, i * 4 +0, ctx->comm2d);//, &req[(i-1)*4+0]);
 			MPI_Send(&grid->height, 1, MPI_INTEGER, i, i * 4  + 1, ctx->comm2d);//, &req[(i-1)*4+1]);
 			MPI_Send(&grid->padding, 1 , MPI_INTEGER, i, i * 4  + 2, ctx->comm2d);//, &req[(i-1)*4+2]);
 			MPI_Send(grid->dbl, grid->pw*grid->ph, MPI_DOUBLE, i, i * 4  + 3, ctx->comm2d);//, &req[(i-1)*4+3]);
-			MPI_Send(&ctx->cart->pos[0][coords[0]], 1, MPI_INTEGER, i, i*4+4, ctx->comm2d);
-			MPI_Send(&ctx->cart->pos[1][coords[1]], 1, MPI_INTEGER, i, i*4+5, ctx->comm2d);
 			
 
 		}
@@ -288,14 +280,13 @@ int init_ctx(ctx_t *ctx, opts_t *opts) {
 		* FIXME: receive dimensions of the grid
 		* store into new_grid
 		*/
+	        //on recoit l'info envoyer par le MASTER
 	 	int width, height, padding;
 		MPI_Recv(&width, 1, MPI_INTEGER, 0, ctx->rank*4+0, ctx->comm2d, &status[0]);
 		MPI_Recv(&height, 1, MPI_INTEGER, 0, ctx->rank*4+1, ctx->comm2d, &status[1]);
 		MPI_Recv(&padding, 1, MPI_INTEGER, 0, ctx->rank*4+2, ctx->comm2d, &status[2]);
 		new_grid = make_grid(width, height, padding);
 		MPI_Recv(new_grid->dbl, new_grid->pw*new_grid->ph, MPI_DOUBLE, 0, ctx->rank * 4 +3, ctx->comm2d, &status[3]);
-		MPI_Recv(&ctx->grid_coords[0], 1, MPI_INTEGER, 0, ctx->rank*4+4, ctx->comm2d, &status[4]);
-		MPI_Recv(&ctx->grid_coords[1], 1, MPI_INTEGER, 0, ctx->rank*4+5, ctx->comm2d, &status[5]);
 		
 		
 
@@ -341,30 +332,29 @@ void exchng2d(ctx_t *ctx) {
 	int width = grid->pw;
 	int height = grid->ph;
 	int padding = grid->padding;
-
+	//on specifie nos types MPI pour faire le transfert de nos frontieres
 	MPI_Datatype ns_transfer;
 	MPI_Datatype ew_transfer;
-	 
+	//on initialise notre status
 	MPI_Status *status = calloc(4*ctx->numprocs, sizeof(MPI_Status));
-	 
+	//on specifie les addresse des debuts de nos frontieres dans notre grid
 	double* send_north = (double*)ctx->curr_grid->dbl + padding + width;
 	double* recv_north = (double*)ctx->curr_grid->dbl + padding;
 	double* send_south = (double*)ctx->curr_grid->dbl + (height - padding - 1) * width + padding;
 	double* recv_south = (double*)ctx->curr_grid->dbl + (height - padding)*width + padding;
 
-
+	//meme chose, sauf que c'est pour l'addresse ou on va placer les donnees
 	double* send_east = (double*)ctx->curr_grid->dbl + (padding + 1)*width - padding - 1;
 	double* recv_east = (double*)send_east + 1;
-
 	double* send_west = (double*)ctx->curr_grid->dbl + padding*width + padding;
  	double* recv_west = (double*)send_west - 1;
-
+	//on specifie nos types MPI, on prend la longueur ainsi que le stride entre nos elements pour le car du vecteur en y
 	MPI_Type_contiguous(ctx->curr_grid->width, MPI_DOUBLE, &ns_transfer);
 	MPI_Type_vector(ctx->curr_grid->height, 1, width, MPI_DOUBLE, &ew_transfer);
 	MPI_Type_commit(&ns_transfer);
 	MPI_Type_commit(&ew_transfer);
 	 
-	 
+	//on envoie nos frontiere
 	MPI_Sendrecv(send_south, 1, ns_transfer, ctx->south_peer, 0, recv_north, 1, ns_transfer, ctx->north_peer, 0, ctx->comm2d, status);
 	MPI_Sendrecv(send_north, 1, ns_transfer, ctx->north_peer, 0, recv_south, 1, ns_transfer, ctx->south_peer, 0, ctx->comm2d, status);
 	MPI_Sendrecv(send_east, 1, ew_transfer, ctx->east_peer, 0, recv_west, 1, ew_transfer, ctx->west_peer, 0, ctx->comm2d, status);
@@ -388,11 +378,12 @@ int gather_result(ctx_t *ctx, opts_t *opts) {
         int i;
         for (i = 1; i < ctx->numprocs; ++i)
         {
+	  // on prend les coordones de chaque rang et on recoit toutes les grid de nos differents rangs
             MPI_Cart_coords(ctx->comm2d, i, DIM_2D, coord);
             new_grid = cart2d_get_grid(ctx->cart, coord[0], coord[1]);
             MPI_Recv(new_grid->dbl, new_grid->width*new_grid->height, MPI_DOUBLE, i, DIM_2D, ctx->comm2d,status);
         }
-      
+	//quand on a tous recu les grids, on les fusionne avec la fonctions cart2d_grid_merge
       	MPI_Cart_coords(ctx->comm2d, ctx->rank, DIM_2D, coord);
       	new_grid = cart2d_get_grid(ctx->cart, coord[0], coord[1]);
       	grid_copy(ctx->next_grid, new_grid);
@@ -400,6 +391,7 @@ int gather_result(ctx_t *ctx, opts_t *opts) {
     }
     else
     {
+      // lorsque le rang n'est pas MASTER, on envoit la grid
         new_grid = grid_padding(ctx->next_grid, 0);
         MPI_Send(new_grid->dbl, new_grid->height*new_grid->width, MPI_DOUBLE, 0, DIM_2D, ctx->comm2d);
 	}

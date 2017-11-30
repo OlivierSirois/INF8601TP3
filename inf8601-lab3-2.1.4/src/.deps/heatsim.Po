@@ -1,27 +1,33 @@
-heatsim.o: heatsim.c /usr/include/stdio.h /usr/include/features.h \
- /usr/include/sys/cdefs.h /usr/include/bits/wordsize.h \
- /usr/include/gnu/stubs.h /usr/include/gnu/stubs-64.h \
- /usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/stddef.h \
+heatsim.o: heatsim.c /usr/include/stdc-predef.h /usr/include/stdio.h \
+ /usr/include/features.h /usr/include/sys/cdefs.h \
+ /usr/include/bits/wordsize.h /usr/include/gnu/stubs.h \
+ /usr/include/gnu/stubs-64.h \
+ /usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/stddef.h \
  /usr/include/bits/types.h /usr/include/bits/typesizes.h \
  /usr/include/libio.h /usr/include/_G_config.h /usr/include/wchar.h \
- /usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/stdarg.h \
+ /usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/stdarg.h \
  /usr/include/bits/stdio_lim.h /usr/include/bits/sys_errlist.h \
  /usr/include/bits/stdio.h /usr/include/stdlib.h \
  /usr/include/bits/waitflags.h /usr/include/bits/waitstatus.h \
+ /usr/include/xlocale.h /usr/include/sys/types.h /usr/include/time.h \
  /usr/include/endian.h /usr/include/bits/endian.h \
- /usr/include/bits/byteswap.h /usr/include/xlocale.h \
- /usr/include/sys/types.h /usr/include/time.h /usr/include/sys/select.h \
- /usr/include/bits/select.h /usr/include/bits/sigset.h \
- /usr/include/bits/time.h /usr/include/sys/sysmacros.h \
- /usr/include/bits/pthreadtypes.h /usr/include/alloca.h \
- /opt/openmpi/include/mpi.h /opt/openmpi/include/mpi_portable_platform.h \
- /usr/include/math.h /usr/include/bits/huge_val.h \
+ /usr/include/bits/byteswap.h /usr/include/bits/byteswap-16.h \
+ /usr/include/sys/select.h /usr/include/bits/select.h \
+ /usr/include/bits/sigset.h /usr/include/bits/time.h \
+ /usr/include/sys/sysmacros.h /usr/include/bits/pthreadtypes.h \
+ /usr/include/alloca.h /usr/include/bits/stdlib-bsearch.h \
+ /usr/include/bits/stdlib-float.h /usr/include/mpich-x86_64/mpi.h \
+ /usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/stdint.h \
+ /usr/include/stdint.h /usr/include/bits/wchar.h \
+ /usr/include/mpich-x86_64/mpio.h /usr/include/mpich-x86_64/mpi.h \
+ /usr/include/math.h /usr/include/bits/math-vector.h \
+ /usr/include/bits/libm-simd-decl-stubs.h /usr/include/bits/huge_val.h \
  /usr/include/bits/huge_valf.h /usr/include/bits/huge_vall.h \
  /usr/include/bits/inf.h /usr/include/bits/nan.h \
  /usr/include/bits/mathdef.h /usr/include/bits/mathcalls.h \
  /usr/include/bits/mathinline.h \
- /usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/limits.h \
- /usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/syslimits.h \
+ /usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/limits.h \
+ /usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/syslimits.h \
  /usr/include/limits.h /usr/include/bits/posix1_lim.h \
  /usr/include/bits/local_lim.h /usr/include/linux/limits.h \
  /usr/include/bits/posix2_lim.h /usr/include/bits/xopen_lim.h \
@@ -29,9 +35,11 @@ heatsim.o: heatsim.c /usr/include/stdio.h /usr/include/features.h \
  /usr/include/bits/string2.h /usr/include/getopt.h /usr/include/unistd.h \
  /usr/include/bits/posix_opt.h /usr/include/bits/environments.h \
  /usr/include/bits/confname.h ../config.h part.h grid.h cart.h image.h \
- /usr/include/png.h /usr/include/zlib.h /usr/include/zconf.h \
- /usr/include/pngconf.h /usr/include/setjmp.h /usr/include/bits/setjmp.h \
- heat.h memory.h util.h
+ /usr/include/png.h /usr/include/pnglibconf.h /usr/include/pngconf.h \
+ /usr/include/setjmp.h /usr/include/bits/setjmp.h \
+ /usr/include/bits/timex.h heat.h memory.h util.h
+
+/usr/include/stdc-predef.h:
 
 /usr/include/stdio.h:
 
@@ -45,7 +53,7 @@ heatsim.o: heatsim.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/gnu/stubs-64.h:
 
-/usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/stddef.h:
+/usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/stddef.h:
 
 /usr/include/bits/types.h:
 
@@ -57,7 +65,7 @@ heatsim.o: heatsim.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/wchar.h:
 
-/usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/stdarg.h:
+/usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/stdarg.h:
 
 /usr/include/bits/stdio_lim.h:
 
@@ -71,17 +79,19 @@ heatsim.o: heatsim.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/bits/waitstatus.h:
 
+/usr/include/xlocale.h:
+
+/usr/include/sys/types.h:
+
+/usr/include/time.h:
+
 /usr/include/endian.h:
 
 /usr/include/bits/endian.h:
 
 /usr/include/bits/byteswap.h:
 
-/usr/include/xlocale.h:
-
-/usr/include/sys/types.h:
-
-/usr/include/time.h:
+/usr/include/bits/byteswap-16.h:
 
 /usr/include/sys/select.h:
 
@@ -97,11 +107,27 @@ heatsim.o: heatsim.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/alloca.h:
 
-/opt/openmpi/include/mpi.h:
+/usr/include/bits/stdlib-bsearch.h:
 
-/opt/openmpi/include/mpi_portable_platform.h:
+/usr/include/bits/stdlib-float.h:
+
+/usr/include/mpich-x86_64/mpi.h:
+
+/usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/stdint.h:
+
+/usr/include/stdint.h:
+
+/usr/include/bits/wchar.h:
+
+/usr/include/mpich-x86_64/mpio.h:
+
+/usr/include/mpich-x86_64/mpi.h:
 
 /usr/include/math.h:
+
+/usr/include/bits/math-vector.h:
+
+/usr/include/bits/libm-simd-decl-stubs.h:
 
 /usr/include/bits/huge_val.h:
 
@@ -119,9 +145,9 @@ heatsim.o: heatsim.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/bits/mathinline.h:
 
-/usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/limits.h:
+/usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/limits.h:
 
-/usr/lib/gcc/x86_64-redhat-linux/4.4.7/include/syslimits.h:
+/usr/lib/gcc/x86_64-redhat-linux/6.3.1/include/syslimits.h:
 
 /usr/include/limits.h:
 
@@ -163,15 +189,15 @@ image.h:
 
 /usr/include/png.h:
 
-/usr/include/zlib.h:
-
-/usr/include/zconf.h:
+/usr/include/pnglibconf.h:
 
 /usr/include/pngconf.h:
 
 /usr/include/setjmp.h:
 
 /usr/include/bits/setjmp.h:
+
+/usr/include/bits/timex.h:
 
 heat.h:
 
